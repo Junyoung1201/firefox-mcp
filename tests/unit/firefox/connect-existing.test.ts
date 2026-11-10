@@ -1,3 +1,7 @@
+import { createRequire } from 'node:module';
+const { Executor, HttpClient } = createRequire(import.meta.url)(
+  'selenium-webdriver/http'
+) as typeof import('selenium-webdriver/http');
 /**
  * Tests for connect-existing mode (FirefoxCore behaviour)
  */
@@ -172,6 +176,7 @@ describe('FirefoxCore connect() BiDi endpoint check', () => {
   // Builds a mock WebDriver whose getCapabilities() resolves to a
   // Capabilities-like object backed by the given values.
   const makeDriver = (capabilityValues: Record<string, unknown>) => ({
+    getExecutor: () => new Executor(new HttpClient('http://127.0.0.1:1')),
     getCapabilities: vi.fn().mockResolvedValue({
       get: vi.fn((name: string) => capabilityValues[name]),
     }),
@@ -231,6 +236,7 @@ describe('FirefoxCore connect() BiDi endpoint check', () => {
     // existsSync returns true for geckodriver paths so findGeckodriver() succeeds.
     vi.doMock('node:fs', () => ({
       existsSync: mockExistsSync,
+      realpathSync: (p: string) => p,
       mkdirSync: vi.fn(),
       copyFileSync: vi.fn(),
       openSync: vi.fn().mockReturnValue(3),

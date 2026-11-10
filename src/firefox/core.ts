@@ -12,6 +12,7 @@ import {
   readdirSync,
   statSync,
   readFileSync,
+  realpathSync,
 } from 'node:fs';
 import { connect as netConnect } from 'node:net';
 import { homedir } from 'node:os';
@@ -21,6 +22,7 @@ import { log, logDebug } from '../utils/logger.js';
 import { findFirefoxBinaryWindows } from './windows-binary.js';
 import { resolveProfilePath } from './profile.js';
 import { instancesDir, logsDir } from '../utils/paths.js';
+import { guardWebDriverCommands } from './command-timeout.js';
 
 // ---------------------------------------------------------------------------
 // Geckodriver binary finder
@@ -33,6 +35,13 @@ function findGeckodriverInPath(binaryName: string): string | null {
     }
     const candidate = join(dir, binaryName);
     if (existsSync(candidate)) {
+      // Launch native geckodriver so forced cleanup cannot orphan a launcher's child.
+      if (
+        realpathSync(candidate).replaceAll('\\', '/').endsWith('/geckodriver/bin/geckodriver.js') ||
+        candidate.startsWith('/snap/bin/')
+      ) {
+        continue;
+      }
       return candidate;
     }
   }
@@ -193,7 +202,10 @@ async function findGeckodriver(): Promise<string> {
   return found;
 }
 
-type GeckodriverProcess = Promise<{ kill(signal: string): void }> | null;
+type GeckodriverProcess = Promise<{
+  kill(signal: string): void;
+  result?: () => Promise<unknown>;
+}> | null;
 
 /** The process of a started service, which DriverService.kill() forgets. */
 function geckodriverProcessOf(service: GeckodriverService): GeckodriverProcess {
@@ -213,6 +225,7 @@ function geckodriverProcessOf(service: GeckodriverService): GeckodriverProcess {
 async function killGeckodriver(geckodriver: GeckodriverProcess): Promise<void> {
   const command = await Promise.resolve(geckodriver).catch(() => null);
   command?.kill('SIGKILL');
+  await command?.result?.().catch(() => {});
 }
 
 /** geckodriver's "unable to find binary" error never mentions the fix. */
@@ -227,6 +240,7 @@ export class FirefoxCore {
   private geckodriverProcess: GeckodriverProcess = null;
   private closed = false;
   private sessionPending = false;
+  private commandTimedOut = false;
   private firefoxVersion: string | null = null;
   private logFileFd: number | undefined;
   private logFilePath: string | undefined;
@@ -527,6 +541,11 @@ export class FirefoxCore {
       );
     }
 
+    guardWebDriverCommands(this.driver.getExecutor(), () => {
+      this.commandTimedOut = true;
+      return this.close();
+    });
+
     // Remember current window handle (browsing context)
     this.currentContextId = await this.driver.getWindowHandle();
     logDebug(`Browsing context ID: ${this.currentContextId}`);
@@ -725,9 +744,12 @@ export class FirefoxCore {
 
     // There is nothing to quit while the session is still pending, and waiting
     // for quit() to time out can outlast the client's patience at shutdown.
-    if (this.sessionPending) {
-      logDebug('Closing while the session is pending - killing geckodriver');
+    if (this.sessionPending || (this.commandTimedOut && geckodriver)) {
+      logDebug('Closing an unresponsive session - killing geckodriver');
       await killGeckodriver(geckodriver);
+      if (typeof webdriver.onQuit_ === 'function') {
+        void webdriver.onQuit_().catch(() => {});
+      }
     } else if ('quit' in webdriver) {
       // In connect-existing mode, geckodriver's DELETE /session releases Marionette
       // without terminating Firefox (since geckodriver was started with --connect-existing).
@@ -743,6 +765,7 @@ export class FirefoxCore {
       } catch {
         const webdriverHasOnQuit = typeof webdriver.onQuit_ === 'function';
         logDebug('WebDriver.quit() timed out or failed - force killing geckodriver');
+        await killGeckodriver(geckodriver);
         if (webdriverHasOnQuit) {
           void webdriver.onQuit_().catch(() => {});
         }

@@ -1,3 +1,7 @@
+import { createRequire } from 'node:module';
+const { Executor, HttpClient } = createRequire(import.meta.url)(
+  'selenium-webdriver/http'
+) as typeof import('selenium-webdriver/http');
 /**
  * Tests for FirefoxCore --pref handling via moz:firefoxOptions
  */
@@ -48,6 +52,7 @@ describe('FirefoxCore prefs via firefoxOptions', () => {
         setFirefoxOptions = vi.fn().mockReturnThis();
         setFirefoxService = vi.fn().mockReturnThis();
         build = vi.fn().mockResolvedValue({
+          getExecutor: () => new Executor(new HttpClient('http://127.0.0.1:1')),
           getWindowHandle: mockGetWindowHandle,
           get: vi.fn().mockResolvedValue(undefined),
           getCapabilities: vi.fn(() => ({ get: vi.fn(() => '123.4') })),

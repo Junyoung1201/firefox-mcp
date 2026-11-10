@@ -1,6 +1,6 @@
 {
   "name": "@mozilla/firefox-devtools-mcp",
-  "version": "0.10.7",
+  "version": "0.10.7-local.1",
   "description": "Model Context Protocol (MCP) server that lets AI agents browse the web and debug web pages with Firefox",
   "mcpName": "io.github.mozilla/firefox-devtools-mcp",
   "author": "Mozilla",
@@ -103,13 +103,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mozilla/firefox-devtools-mcp.git"
+    "url": "git+https://github.com/Junyoung1201/firefox-mcp.git"
   },
   "bugs": {
-    "url": "https://github.com/mozilla/firefox-devtools-mcp/issues"
+    "url": "https://github.com/Junyoung1201/firefox-mcp/issues"
   },
-  "homepage": "https://github.com/mozilla/firefox-devtools-mcp#readme",
+  "homepage": "https://github.com/Junyoung1201/firefox-mcp#readme",
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "private": true
 }

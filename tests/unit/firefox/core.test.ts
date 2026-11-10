@@ -1,3 +1,7 @@
+import { createRequire } from 'node:module';
+const { Executor, HttpClient } = createRequire(import.meta.url)(
+  'selenium-webdriver/http'
+) as typeof import('selenium-webdriver/http');
 /**
  * Unit tests for FirefoxCore module
  */
@@ -349,6 +353,7 @@ describe('FirefoxCore connect() profile handling', () => {
         setFirefoxOptions = vi.fn().mockReturnThis();
         setFirefoxService = vi.fn().mockReturnThis();
         build = vi.fn().mockResolvedValue({
+          getExecutor: () => new Executor(new HttpClient('http://127.0.0.1:1')),
           getCapabilities: vi.fn(() => ({ get: vi.fn(() => '123.4') })),
           getWindowHandle: vi.fn().mockResolvedValue('mock-context-id'),
           get: vi.fn().mockResolvedValue(undefined),
@@ -361,6 +366,7 @@ describe('FirefoxCore connect() profile handling', () => {
     // existsSync returns true for geckodriver paths so findGeckodriver() succeeds.
     vi.doMock('node:fs', () => ({
       existsSync: vi.fn((p: unknown) => String(p).includes('geckodriver')),
+      realpathSync: (p: string) => p,
       mkdirSync: vi.fn(),
       copyFileSync: vi.fn(),
       writeFileSync: vi.fn(),
@@ -477,6 +483,7 @@ describe('FirefoxCore connect() binary lookup failure', () => {
 
     vi.doMock('node:fs', () => ({
       existsSync: vi.fn((p: unknown) => String(p).includes('geckodriver')),
+      realpathSync: (p: string) => p,
       mkdirSync: vi.fn(),
       copyFileSync: vi.fn(),
       writeFileSync: vi.fn(),
